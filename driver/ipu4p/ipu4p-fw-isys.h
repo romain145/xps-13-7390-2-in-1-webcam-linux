@@ -14,7 +14,7 @@ struct device;
 #define IPU4P_FW_ISYS_SENSOR_TYPE_END	19
 #define IPU4P_ISYS_OPEN_RETRY		2000
 #define IPU4P_ISYS_CLOSE_RETRY		2000
-#define IPU4P_FW_CALL_TIMEOUT_JIFFIES	msecs_to_jiffies(2000)
+#define IPU4P_FW_CALL_TIMEOUT_JIFFIES	msecs_to_jiffies(750)	/* replies take ms; a hang is reset anyway */
 /* --- end driver glue --- */
 
 
