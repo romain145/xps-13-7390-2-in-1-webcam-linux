@@ -4,6 +4,9 @@ Requires=xps7390-webcam-setup.service
 After=xps7390-webcam-setup.service
 
 [Service]
+RuntimeDirectory=xps7390-webcam
+RuntimeDirectoryMode=0755
+ExecStartPre=/usr/lib/xps7390-webcam/write-bridge-marker
 ExecStart=/usr/local/bin/ipu4-softisp /dev/video-ipu4-raw /dev/video57
 Restart=always
 RestartSec=2
