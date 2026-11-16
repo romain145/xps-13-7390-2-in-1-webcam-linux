@@ -12,3 +12,12 @@ softisp/ipu4-softisp
 firmware/
 result
 result-*
+
+# local build output and scratch files
+*.log
+*.orig
+softisp/ipu4-softisp.c.v*
+packaging/src/
+packaging/pkg/
+packaging/*.pkg.tar.zst
+packaging/camera-source.tar.gz
