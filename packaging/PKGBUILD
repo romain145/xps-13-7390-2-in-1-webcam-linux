@@ -1,0 +1,40 @@
+pkgname=xps7390-webcam-dkms
+pkgver=0.1.0
+pkgrel=12
+pkgdesc='Dell XPS 13 7390 2-in-1 IPU4P camera, CachyOS compatibility port'
+arch=('x86_64')
+license=('GPL-2.0-only')
+depends=('dkms' 'v4l-utils' 'v4l2loopback-dkms' 'clang' 'llvm')
+makedepends=('gcc' 'make')
+source=('camera-source.tar.gz')
+sha256sums=('563295419d4e4e5265746190c707775f372bb6b728d8f3200946c9d0ca4ad040')
+
+build() {
+  make -C "$srcdir/camera/softisp"
+}
+
+package() {
+  local dest="$pkgdir/usr/src/xps7390-webcam-$pkgver"
+  install -d "$dest"
+  cp -a "$srcdir/camera/driver" "$dest/"
+  install -m644 "$srcdir/camera/Makefile" "$srcdir/camera/dkms.conf" "$dest/"
+  install -Dm755 "$srcdir/camera/softisp/ipu4-softisp" "$pkgdir/usr/bin/ipu4-softisp"
+  install -Dm755 "$srcdir/camera/scripts/setup-camera.sh" "$pkgdir/usr/lib/xps7390-webcam/setup-camera"
+  install -Dm755 "$srcdir/camera/scripts/write-bridge-marker.sh" "$pkgdir/usr/lib/xps7390-webcam/write-bridge-marker"
+  install -Dm755 "$srcdir/camera/scripts/sleep-hook.sh" "$pkgdir/usr/lib/systemd/system-sleep/xps7390-webcam"
+  install -Dm644 "$srcdir/camera/systemd/xps7390-webcam-setup.service" "$pkgdir/usr/lib/systemd/system/xps7390-webcam-setup.service"
+  install -Dm644 "$srcdir/camera/systemd/xps7390-webcam.service" "$pkgdir/usr/lib/systemd/system/xps7390-webcam.service"
+  sed -i 's@/usr/local/libexec/xps7390-webcam-setup@/usr/lib/xps7390-webcam/setup-camera@' "$pkgdir/usr/lib/systemd/system/xps7390-webcam-setup.service"
+  sed -i 's@/usr/local/bin/ipu4-softisp@/usr/bin/ipu4-softisp@' "$pkgdir/usr/lib/systemd/system/xps7390-webcam.service"
+  install -Dm644 /dev/stdin "$pkgdir/usr/lib/modprobe.d/xps7390-webcam.conf" <<'CONF'
+# Select the model-specific sensor driver, including during early boot.
+blacklist ov01a10
+CONF
+  install -Dm644 /dev/stdin "$pkgdir/usr/lib/udev/rules.d/71-xps7390-webcam.rules" <<'RULES'
+# Gaze trusts the /dev/video57 relay only if the seat user cannot inject frames
+# into it, so drop the uaccess ACL. Access stays with root and the video group.
+SUBSYSTEM=="video4linux", KERNEL=="video57", ATTR{name}=="XPS Front Camera", TAG-="uaccess", GROUP="video", MODE="0660"
+RULES
+  # Firmware is extracted and checksum-verified separately; never distributed here.
+  # Initial bring-up is manual. Autostart is enabled only after capture validation.
+}
