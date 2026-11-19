@@ -52,6 +52,7 @@
 #define MIN_ACC 2		/* sensor frames summed per output */
 #define MAX_ACC 4
 #define IDLE_MS 2000		/* keep streaming this long after last reader */
+#define IDLE_REFRESH_MS 1000	/* rewrite the black frame this often while idle */
 #define FRAME_TIMEOUT_MS 500	/* a stalled IPU stream; frames arrive every 17 ms */
 #define FIRST_FRAME_TIMEOUT_MS 1500
 #define MAX_RECOVERIES 3	/* consecutive failed sessions before exiting */
@@ -891,12 +892,24 @@ int main(int argc, char **argv)
 		resume_req = 0;
 		if (s.readers <= 0) {
 			struct pollfd pfd = { .fd = s.out_fd, .events = POLLPRI };
+			int pr = poll(&pfd, 1, IDLE_REFRESH_MS);
 
-			if (poll(&pfd, 1, -1) < 0) {
+			if (pr < 0) {
 				if (errno == EINTR)
 					continue;
 				perror("poll");
 				return 1;
+			}
+			/*
+			 * A reader that starts streaming first receives the last frame
+			 * written, stamped with the time it was written. Players that
+			 * pace frames by timestamp (ffplay, guvcview) hold that frame
+			 * for the whole idle period before showing the next one, so
+			 * keep it recent.
+			 */
+			if (pr == 0) {
+				write_black(s.out_fd);
+				continue;
 			}
 			if (pfd.revents & POLLPRI)
 				s.readers = dq_readers(s.out_fd, s.readers);
