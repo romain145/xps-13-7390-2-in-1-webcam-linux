@@ -376,6 +376,22 @@ static void write_black(int out_fd)
 		perror("loopback write (black)");
 }
 
+/*
+ * v4l2loopback's default frame interval is the unreduced 10000/300000, and
+ * Chromium-based apps set it back to that when they capture. PipeWire 1.0
+ * does not match it against 30/1, so GStreamer apps that request a frame
+ * rate (Cheese) fail with "no more input formats". Advertise exactly 1/30.
+ */
+static void set_output_interval(int out_fd)
+{
+	struct v4l2_streamparm p = { .type = V4L2_BUF_TYPE_VIDEO_OUTPUT };
+
+	p.parm.output.timeperframe.numerator = 1;
+	p.parm.output.timeperframe.denominator = 30;
+	if (xioctl(out_fd, VIDIOC_S_PARM, &p) < 0)
+		perror("output S_PARM");
+}
+
 static double now_ms(void)
 {
 	struct timespec t;
@@ -825,20 +841,7 @@ int main(int argc, char **argv)
 			return 1;
 		}
 	}
-	{
-		/*
-		 * v4l2loopback's default frame interval is the unreduced
-		 * 10000/300000. PipeWire 1.0 does not match it against 30/1, so
-		 * GStreamer apps that request a frame rate (Cheese) fail with
-		 * "no more input formats". Advertise exactly 1/30.
-		 */
-		struct v4l2_streamparm p = { .type = V4L2_BUF_TYPE_VIDEO_OUTPUT };
-
-		p.parm.output.timeperframe.numerator = 1;
-		p.parm.output.timeperframe.denominator = 30;
-		if (xioctl(s.out_fd, VIDIOC_S_PARM, &p) < 0)
-			perror("output S_PARM");
-	}
+	set_output_interval(s.out_fd);
 	{
 		struct v4l2_event_subscription sub = {
 			.type = V4L2_EVENT_PRI_CLIENT_USAGE,
@@ -932,7 +935,10 @@ int main(int argc, char **argv)
 			fprintf(stderr, "ipu4-softisp: restarting capture (attempt %d)\n",
 				failures + 1);
 		}
-		if (s.readers <= 0)
+		if (s.readers <= 0) {
+			/* undo the 10000/300000 a Chromium-based reader may have set */
+			set_output_interval(s.out_fd);
 			fprintf(stderr, "ipu4-softisp: no readers, sensor stopped\n");
+		}
 	}
 }
